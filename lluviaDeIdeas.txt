@@ -1,0 +1,9 @@
+* Separar música por clases (ruido blanco, para concentración, sonido neutro, etc)
+* Rangos (plata, oro, etc)
+* Categorías de música (Lectura, estudio)
+* Puntos por tiempo de estudio y desbloqueo de temas
+* Música orientada a la concentración
+* feed de spotify ("Inspiración" ;) )
+* Opiones de reproducción flotantes al mantener pulsada la pantalla
+* Incluir el pomodoro sincronizado con la música
+* Mascota estilo duolingo
