@@ -1,3 +1,5 @@
+LLUVIA DE IDEAS
+
 * Separar música por clases (ruido blanco, para concentración, sonido neutro, etc)
 * Rangos (plata, oro, etc)
 * Categorías de música (Lectura, estudio)
