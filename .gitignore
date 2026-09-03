@@ -1,0 +1,22 @@
+# Cache de bytecode compilado de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Cache de pruebas y cobertura
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.nox/
+.hypothesis/
+
+# Entornos virtuales
+venv/
+env/
+ENV/
+.venv/
+
+# Cache de herramientas de tipado y linters
+.mypy_cache/
+.ruff_cache/
