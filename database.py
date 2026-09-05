@@ -1,14 +1,21 @@
-from sqlmodel import SQLModel, create_engine, Session
+from sqlmodel import SQLModel
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.orm import sessionmaker
 
 sqlite_file_name = "music.db"
-sqlite_url = f"sqlite:///{sqlite_file_name}"
+# Driver aiosqlite necesario para operacion asincrona
+sqlite_url = f"sqlite+aiosqlite:///{sqlite_file_name}"
 
-# engine gestiona la conexión con la base de datos SQLite
-engine = create_engine(sqlite_url, echo=True)
+engine = create_async_engine(sqlite_url, echo=True)
 
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
+async def create_db_and_tables():
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
 
-def get_session():
-    with Session(engine) as session:
+async def get_session():
+    async_session = sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with async_session() as session:
         yield session

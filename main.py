@@ -1,16 +1,17 @@
-import shutil
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlmodel import Session, select
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.orm import selectinload
+import aiofiles
 
 from database import create_db_and_tables, get_session
 from models import Usuario, UsuarioCreate, Audio, AudioCreate, SesionEstudio, calcular_rango
 
 app = FastAPI(title="API Sonidos de Concentración")
 
-# Permite peticiones desde la aplicación móvil (CORS)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,31 +20,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Servir archivos de audio e imágenes localmente desde la carpeta /static
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.on_event("startup")
-def on_startup():
-    create_db_and_tables()
+async def on_startup():
+    await create_db_and_tables()
 
 @app.get("/")
-def inicio():
+async def inicio():
     return {"mensaje": "API Sonidos de Concentración activa"}
 
 
 # --- GESTIÓN DE USUARIOS ---
 
 @app.post("/usuarios", response_model=Usuario)
-def crear_usuario(usuario: UsuarioCreate, session: Session = Depends(get_session)):
+async def crear_usuario(usuario: UsuarioCreate, session: AsyncSession = Depends(get_session)):
     db_usuario = Usuario.model_validate(usuario)
     session.add(db_usuario)
-    session.commit()
-    session.refresh(db_usuario)
+    await session.commit()
+    await session.refresh(db_usuario)
     return db_usuario
 
 @app.get("/usuarios/{usuario_id}", response_model=Usuario)
-def obtener_usuario(usuario_id: int, session: Session = Depends(get_session)):
-    usuario = session.get(Usuario, usuario_id)
+async def obtener_usuario(usuario_id: int, session: AsyncSession = Depends(get_session)):
+    usuario = await session.get(Usuario, usuario_id)
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return usuario
@@ -52,31 +52,36 @@ def obtener_usuario(usuario_id: int, session: Session = Depends(get_session)):
 # --- CATÁLOGO Y REGISTRO DE AUDIOS ---
 
 @app.get("/audios", response_model=List[Audio])
-def listar_audios(
+async def listar_audios(
     categoria: Optional[str] = Query(None, description="Filtrar por Lectura, Estudio Profundo, Relax"),
     tipo_sonido: Optional[str] = Query(None, description="Filtrar por Ruido Blanco, Binaural, Sonido Neutro"),
-    session: Session = Depends(get_session)
+    session: AsyncSession = Depends(get_session)
 ):
     query = select(Audio)
     if categoria:
         query = query.where(Audio.categoria == categoria)
     if tipo_sonido:
         query = query.where(Audio.tipo_sonido == tipo_sonido)
-    return session.exec(query).all()
+        
+    resultado = await session.exec(query)
+    return resultado.all()
 
 @app.post("/audios", response_model=Audio)
-def crear_audio(audio: AudioCreate, session: Session = Depends(get_session)):
+async def crear_audio(audio: AudioCreate, session: AsyncSession = Depends(get_session)):
     db_audio = Audio.model_validate(audio)
     session.add(db_audio)
-    session.commit()
-    session.refresh(db_audio)
+    await session.commit()
+    await session.refresh(db_audio)
     return db_audio
 
 @app.post("/audios/subir-audio/")
-def subir_audio(file: UploadFile = File(...)):
+async def subir_audio(file: UploadFile = File(...)):
     ruta_archivo = f"static/audio/{file.filename}"
-    with open(ruta_archivo, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    
+    # Escritura asíncrona de archivos
+    async with aiofiles.open(ruta_archivo, "wb") as buffer:
+        contenido = await file.read()
+        await buffer.write(contenido)
         
     url_publica = f"/static/audio/{file.filename}"
     return {"mensaje": "Archivo subido con éxito", "url_audio": url_publica}
@@ -85,16 +90,15 @@ def subir_audio(file: UploadFile = File(...)):
 # --- TEMPORIZADOR POMODORO Y SISTEMA DE PUNTOS ---
 
 @app.post("/pomodoro/completar")
-def registrar_pomodoro(
+async def registrar_pomodoro(
     usuario_id: int, 
     minutos: int, 
-    session: Session = Depends(get_session)
+    session: AsyncSession = Depends(get_session)
 ):
-    usuario = session.get(Usuario, usuario_id)
+    usuario = await session.get(Usuario, usuario_id)
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    # Regla de negocio: 1 minuto de estudio = 2 puntos
     puntos_ganados = minutos * 2
     usuario.puntos += puntos_ganados
     usuario.rango = calcular_rango(usuario.puntos)
@@ -107,8 +111,8 @@ def registrar_pomodoro(
     
     session.add(usuario)
     session.add(nueva_sesion)
-    session.commit()
-    session.refresh(usuario)
+    await session.commit()
+    await session.refresh(usuario)
     
     return {
         "mensaje": "Sesión registrada",
@@ -121,13 +125,17 @@ def registrar_pomodoro(
 # --- DESBLOQUEO DE AUDIOS CON PUNTOS ---
 
 @app.post("/audios/{audio_id}/desbloquear")
-def desbloquear_audio(
+async def desbloquear_audio(
     audio_id: int, 
     usuario_id: int, 
-    session: Session = Depends(get_session)
+    session: AsyncSession = Depends(get_session)
 ):
-    usuario = session.get(Usuario, usuario_id)
-    audio = session.get(Audio, audio_id)
+    # Carga explícita de relación para evitar bloqueos asíncronos (lazy loading)
+    query_usuario = select(Usuario).where(Usuario.id == usuario_id).options(selectinload(Usuario.audios_desbloqueados))
+    res_usuario = await session.exec(query_usuario)
+    usuario = res_usuario.first()
+
+    audio = await session.get(Audio, audio_id)
     
     if not usuario or not audio:
         raise HTTPException(status_code=404, detail="Usuario o Audio no encontrado")
@@ -142,6 +150,6 @@ def desbloquear_audio(
     usuario.audios_desbloqueados.append(audio)
     
     session.add(usuario)
-    session.commit()
+    await session.commit()
     
     return {"mensaje": "Audio desbloqueado con éxito", "puntos_restantes": usuario.puntos}
