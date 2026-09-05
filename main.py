@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 
 from database import create_db_and_tables, get_session
-from models import Usuario, Audio, SesionEstudio, calcular_rango
+from models import Usuario, UsuarioCreate, Audio, AudioCreate, SesionEstudio, calcular_rango
 
 app = FastAPI(title="API Sonidos de Concentración")
 
@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Servir archivos de audio e imágenes localmente
+# Servir archivos de audio e imágenes localmente desde la carpeta /static
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.on_event("startup")
@@ -30,12 +30,31 @@ def on_startup():
 def inicio():
     return {"mensaje": "API Sonidos de Concentración activa"}
 
-# --- CATÁLOGO DE MÚSICA Y FILTROS ---
+
+# --- GESTIÓN DE USUARIOS ---
+
+@app.post("/usuarios", response_model=Usuario)
+def crear_usuario(usuario: UsuarioCreate, session: Session = Depends(get_session)):
+    db_usuario = Usuario.model_validate(usuario)
+    session.add(db_usuario)
+    session.commit()
+    session.refresh(db_usuario)
+    return db_usuario
+
+@app.get("/usuarios/{usuario_id}", response_model=Usuario)
+def obtener_usuario(usuario_id: int, session: Session = Depends(get_session)):
+    usuario = session.get(Usuario, usuario_id)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return usuario
+
+
+# --- CATÁLOGO Y REGISTRO DE AUDIOS ---
 
 @app.get("/audios", response_model=List[Audio])
 def listar_audios(
-    categoria: Optional[str] = Query(None, description="Filtrar por Lectura, Estudio, Relax"),
-    tipo_sonido: Optional[str] = Query(None, description="Filtrar por Ruido Blanco, Binaural, Neutro"),
+    categoria: Optional[str] = Query(None, description="Filtrar por Lectura, Estudio Profundo, Relax"),
+    tipo_sonido: Optional[str] = Query(None, description="Filtrar por Ruido Blanco, Binaural, Sonido Neutro"),
     session: Session = Depends(get_session)
 ):
     query = select(Audio)
@@ -44,6 +63,14 @@ def listar_audios(
     if tipo_sonido:
         query = query.where(Audio.tipo_sonido == tipo_sonido)
     return session.exec(query).all()
+
+@app.post("/audios", response_model=Audio)
+def crear_audio(audio: AudioCreate, session: Session = Depends(get_session)):
+    db_audio = Audio.model_validate(audio)
+    session.add(db_audio)
+    session.commit()
+    session.refresh(db_audio)
+    return db_audio
 
 @app.post("/audios/subir-audio/")
 def subir_audio(file: UploadFile = File(...)):
@@ -54,7 +81,8 @@ def subir_audio(file: UploadFile = File(...)):
     url_publica = f"http://127.0.0.1:8000/static/audio/{file.filename}"
     return {"mensaje": "Archivo subido con éxito", "url_audio": url_publica}
 
-# --- POMODORO Y PUNTOS ---
+
+# --- TEMPORIZADOR POMODORO Y SISTEMA DE PUNTOS ---
 
 @app.post("/pomodoro/completar")
 def registrar_pomodoro(
@@ -66,12 +94,16 @@ def registrar_pomodoro(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    # Regla: 1 minuto de estudio = 2 puntos
+    # Regla de negocio: 1 minuto de estudio = 2 puntos
     puntos_ganados = minutos * 2
     usuario.puntos += puntos_ganados
     usuario.rango = calcular_rango(usuario.puntos)
     
-    nueva_sesion = SesionEstudio(usuario_id=usuario_id, minutos_estudiados=minutos, puntos_obtenidos=puntos_ganados)
+    nueva_sesion = SesionEstudio(
+        usuario_id=usuario_id, 
+        minutos_estudiados=minutos, 
+        puntos_obtenidos=puntos_ganados
+    )
     
     session.add(usuario)
     session.add(nueva_sesion)
@@ -85,7 +117,8 @@ def registrar_pomodoro(
         "rango_actual": usuario.rango
     }
 
-# --- DESBLOQUEO DE MÚSICA ---
+
+# --- DESBLOQUEO DE AUDIOS CON PUNTOS ---
 
 @app.post("/audios/{audio_id}/desbloquear")
 def desbloquear_audio(
@@ -100,10 +133,10 @@ def desbloquear_audio(
         raise HTTPException(status_code=404, detail="Usuario o Audio no encontrado")
     
     if audio in usuario.audios_desbloqueados:
-        return {"mensaje": "El audio ya está desbloqueado"}
+        return {"mensaje": "El audio ya se encuentra desbloqueado"}
         
     if usuario.puntos < audio.puntos_requeridos:
-        raise HTTPException(status_code=400, detail="Puntos insuficientes")
+        raise HTTPException(status_code=400, detail="Puntos insuficientes para desbloquear este audio")
         
     usuario.puntos -= audio.puntos_requeridos
     usuario.audios_desbloqueados.append(audio)
