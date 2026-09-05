@@ -12,10 +12,10 @@ htmlcov/
 .hypothesis/
 
 # Entornos virtuales
-venv/0
 env/
 ENV/
 .venv/
+venv/
 
 # Cache de herramientas de tipado y linters
 .mypy_cache/
@@ -32,3 +32,8 @@ mysql_data/
 mongo_data/
 data/
 docker-compose.override.yml
+# ***************************
+static/audio/*
+static/imagenes/*
+music.db
+
