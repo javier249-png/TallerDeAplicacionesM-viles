@@ -20,7 +20,9 @@ app.add_middleware(
 )
 
 # Servir archivos de audio e imágenes localmente desde la carpeta /static
-app.mount("/static", StaticFiles(directory="static"), name="static")
+#/////////////SE COMENTA PROVISORIAMENTE POR PRUEBAS////////////////////////////////////////////////////
+# app.mount("/static", StaticFiles(directory="static"), name="static")
+#//////////////////////////////////////////////////////////////////////////////
 
 @app.on_event("startup")
 def on_startup():
