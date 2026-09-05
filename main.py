@@ -78,7 +78,7 @@ def subir_audio(file: UploadFile = File(...)):
     with open(ruta_archivo, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
         
-    url_publica = f"http://127.0.0.1:8000/static/audio/{file.filename}"
+    url_publica = f"/static/audio/{file.filename}"
     return {"mensaje": "Archivo subido con éxito", "url_audio": url_publica}
 
 
