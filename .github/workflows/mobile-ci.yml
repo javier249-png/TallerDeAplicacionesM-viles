@@ -31,6 +31,8 @@ jobs:
 
       - name: Instalar dependencias
         run: npm install
+        # TODO: remover continue-on-error: true cuando el equipo Frontend suba el package.json inicial a 'mobile/'
+        continue-on-error: true
 
       - name: Ejecutar Linter
         run: npm run lint --if-present
