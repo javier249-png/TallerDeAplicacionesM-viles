@@ -12,7 +12,7 @@ htmlcov/
 .hypothesis/
 
 # Entornos virtuales
-venv/
+venv/0
 env/
 ENV/
 .venv/
