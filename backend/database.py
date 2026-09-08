@@ -1,10 +1,15 @@
+import os
+from dotenv import load_dotenv
 from sqlmodel import SQLModel, create_engine, Session
 
-sqlite_file_name = "music.db"
-sqlite_url = f"sqlite:///{sqlite_file_name}"
+# Cargar las variables del archivo .env
+load_dotenv()
 
-# engine gestiona la conexión con la base de datos SQLite
-engine = create_engine(sqlite_url, echo=True)
+# Obtener la URL de conexión de Neon.tech desde el .env
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Crear el motor de conexión apuntando a PostgreSQL en Neon
+engine = create_engine(DATABASE_URL, echo=True)
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
