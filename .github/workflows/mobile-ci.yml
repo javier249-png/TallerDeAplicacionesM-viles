@@ -1,0 +1,45 @@
+name: Mobile CI Pipeline
+
+on:
+  pull_request:
+    branches: [ development, main ]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+  push:
+    branches: [ development ]
+    paths:
+      - 'mobile/**'
+
+jobs:
+  validate-mobile:
+    name: Lint & Test Mobile
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./mobile
+
+    steps:
+      - name: Checkout del codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias
+        run: npm install
+        # TODO: Remover continue-on-error cuando el frontend suba el package.json
+        continue-on-error: true
+
+      - name: Ejecutar Linter
+        run: npm run lint --if-present
+        # TODO: Quitar permisividad al subir modulo mobile
+        continue-on-error: true
+
+      - name: Ejecutar Tests Unitarios
+        run: npm test --if-present
+        # TODO: Activar pruebas estrictas en el futuro
+        continue-on-error: true
