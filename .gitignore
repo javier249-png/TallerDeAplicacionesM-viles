@@ -1,34 +1,30 @@
-# Cache de bytecode compilado de Python
+# Entornos Virtuales de Python
+venv/
+.venv/
+env/
+ENV/
+
+# Byte-code / Caché de Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Cache de pruebas y cobertura
 .pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
 
-# Entornos virtuales
-env/
-ENV/
-.venv/
-venv/
-
-# Variables de entorno y secretos
+# Variables de Entorno y Secretos
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
 
-# Archivos y volúmenes de Docker
-postgres_data/
-mysql_data/
-data/
+# Archivos de la Base de Datos Local / Docker
+*.sqlite3
+*.db
 
-# --- REGLAS ESPECÍFICAS DEL BACKEND ---
-backend/music.db
-backend/Interfaz/
-backend/static/audio/*
-!backend/static/audio/.gitkeep
-backend/static/imagenes/*
-!backend/static/imagenes/.gitkeep
+# Configuración de IDEs y Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs y Archivos Temporales
+*.log
+logs/
