@@ -3,6 +3,7 @@ fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 
 # Base de Datos, ORM y Migraciones (MySQL)
+sqlmodel>=0.0.22
 sqlalchemy>=2.0.35
 pymysql>=1.1.1
 cryptography>=43.0.0
