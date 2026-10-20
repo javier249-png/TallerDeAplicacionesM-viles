@@ -40,6 +40,10 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+@app.get("/hola-mundo")
+def hola_mundo():
+    return {"message": "Hola Mundo"}
+
 @app.get("/healthcheck", tags=["System"])
 def healthcheck():
     return {"status": "healthy", "service": "studyplay-api"}
