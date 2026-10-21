@@ -5,8 +5,17 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from secure import Secure
 
+import logging
+from sqlalchemy.exc import OperationalError
+from sqlalchemy import text
+from fastapi.responses import JSONResponse
+
 from config import settings
+from db.database import SessionLocal
 from routers import auth, audio, pomodoro, users
+
+# Logger oficial para registrar errores internos en 1Panel/Docker
+logger = logging.getLogger("uvicorn.error")
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
@@ -20,6 +29,18 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Manejador global de errores de Base de Datos (Seguridad OWASP: Oculta detalles al cliente, loguea internamente)
+@app.exception_handler(OperationalError)
+async def database_connection_error_handler(request: Request, exc: OperationalError):
+    logger.error(f"[ERROR INTERNO DE BASE DE DATOS]: {repr(exc)}")
+    return JSONResponse(
+        status_code=503,
+        content={
+            "status": "error",
+            "message": "Servicio temporalmente no disponible. Por favor, intente más tarde."
+        }
+    )
 
 secure_headers = Secure()
 
@@ -42,7 +63,26 @@ app.add_middleware(
 
 @app.get("/healthcheck", tags=["System"])
 def healthcheck():
-    return {"status": "healthy", "service": "studyplay-api"}
+    db_status = "connected"
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+    except Exception as e:
+        db_status = "disconnected"
+        logger.error(f"[HEALTHCHECK ERROR]: No se pudo conectar a la base de datos -> {repr(e)}")
+    
+    status_code = 200 if db_status == "connected" else 503
+    
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if db_status == "connected" else "degraded",
+            "service": "studyplay-api",
+            "database": db_status,
+            "port": settings.PORT
+        }
+    )
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Autenticación"])
 app.include_router(audio.router, prefix="/api/v1/audio", tags=["Audio Funcional & Feed"])
