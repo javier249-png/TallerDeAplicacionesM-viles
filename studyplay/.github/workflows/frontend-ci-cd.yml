@@ -1,0 +1,39 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  validate-and-build:
+    name: Build & Test Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Descargar el código (Checkout)
+        uses: actions/checkout@v4
+
+      - name: 2. Configurar entorno Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm' # Cambiar a 'pnpm' o 'yarn' si usas otro gestor
+
+      - name: 3. Instalar dependencias
+        run: npm ci
+
+      - name: 4. Validar formato y Linting
+        run: npm run lint --if-present
+
+      - name: 5. Compilar TypeScript / Verificación de tipos
+        run: npm run typecheck --if-present
+
+      - name: 6. Ejecutar pruebas unitarias
+        run: npm test --if-present
+
+      - name: 7. Construir aplicación para producción (Build)
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
