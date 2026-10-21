@@ -1,0 +1,28 @@
+name: Backend CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Despliegue Automático en VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Conectar por SSH y desplegar en VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            cd /opt/TallerDeAplicacionesM-viles/studyplay
+            git pull origin main
+            docker compose down studyplay_backend || true
+            docker compose up -d --build studyplay_backend
+            docker image prune -f
