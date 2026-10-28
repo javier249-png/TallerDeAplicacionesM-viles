@@ -1,6 +1,8 @@
-from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 from typing import Optional
+
+from pydantic import BaseModel, EmailStr, Field
+
 
 class UserRegister(BaseModel):
     email: EmailStr
@@ -12,6 +14,16 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    avatar_url: Optional[str] = Field(None, max_length=2048)
+
 
 class TokenResponse(BaseModel):
     access_token: str
