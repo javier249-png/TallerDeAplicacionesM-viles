@@ -1,17 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+
 from db.database import get_db
-from auth_utils import get_current_active_user
+from models.user_orm import UserORM
+from security.deps import get_current_active_user
 
 router = APIRouter()
 
+
 @router.get("/", summary="Obtener actividades o tareas diarias del estudiante")
-def get_user_activities(current_user = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    """
-    Retorna el listado de lecciones o misiones diarias para la HomeScreen o ActivitiesScreen.
-    """
-    # Aquí puedes consultar la tabla 'activities' y el progreso del usuario
-    # Simulación de respuesta estructurada para el front:
+def get_user_activities(
+    current_user: UserORM = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
     return {
         "status": "success",
         "data": [
@@ -33,22 +34,17 @@ def get_user_activities(current_user = Depends(get_current_active_user), db: Ses
     }
 
 @router.post("/{activity_id}/complete", summary="Marcar actividad como completada y sumar XP")
-def complete_activity(activity_id: int, current_user = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    """
-    Marca la tarea como completada, otorga los puntos correspondientes (+50 XP) 
-    y actualiza el nivel del estudiante en su perfil.
-    """
-    # Ejemplo de lógica de negocio para sumar XP:
+def complete_activity(
+    activity_id: int,
+    current_user: UserORM = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
     reward_xp = 50
-    
-    # Sumar XP al usuario autenticado (asumiendo que tiene el atributo xp)
-    current_user.xp = getattr(current_user, "xp", 0) + reward_xp
-    
-    # Lógica opcional para subir de nivel cada 200 XP
+
+    current_user.xp += reward_xp
     current_user.level = (current_user.xp // 200) + 1
-    
     db.commit()
-    
+
     return {
         "status": "success",
         "message": "¡Actividad completada con éxito!",
@@ -56,6 +52,6 @@ def complete_activity(activity_id: int, current_user = Depends(get_current_activ
             "activity_id": activity_id,
             "xp_earned": reward_xp,
             "total_xp": current_user.xp,
-            "current_level": current_user.level
-        }
+            "current_level": current_user.level,
+        },
     }
