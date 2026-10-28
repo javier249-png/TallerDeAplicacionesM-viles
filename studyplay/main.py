@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from config import settings
 from db.database import SessionLocal
-from routers import auth, audio, pomodoro, users
+from routers import auth, audio, pomodoro, users, activities
 
 # Logger oficial para registrar errores internos en 1Panel/Docker
 logger = logging.getLogger("uvicorn.error")
@@ -88,3 +88,4 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["Autenticación"])
 app.include_router(audio.router, prefix="/api/v1/audio", tags=["Audio Funcional & Feed"])
 app.include_router(pomodoro.router, prefix="/api/v1/pomodoro", tags=["Temporizador Pomodoro"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["Usuarios & Leyes Chile"])
+app.include_router(activities.router, prefix="/api/v1/activities", tags=["Actividades & Gamificación"])
