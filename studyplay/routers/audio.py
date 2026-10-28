@@ -1,14 +1,12 @@
-from fastapi import APIRouter,Depends, Query, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from models.audio import TrackResponse, NoiseMixerRequest
 from security.deps import get_current_user
-from sqlalchemy.orm import Session
-from db.database import get_db
 
 router = APIRouter()
 
 @router.get("/feed", response_model=List[TrackResponse])
-def get_spotify_feed(
+async def get_spotify_feed(
     category: Optional[str] = Query(None, description="lo-fi, clasica, ambient, asmr, 8d"),
     wave_type: Optional[str] = Query(None, description="Alfa, Beta, Theta")
 ):
@@ -25,11 +23,11 @@ def get_spotify_feed(
     ]
 
 @router.post("/noise-generator/mix")
-def update_noise_mixer(config: NoiseMixerRequest, current_user: str = Depends(get_current_user)):
+async def update_noise_mixer(config: NoiseMixerRequest, current_user: str = Depends(get_current_user)):
     return {"status": "configured", "mix": config.model_dump(), "user_id": current_user}
 
 @router.get("/albums", summary="Listar álbumes de estudio")
-def get_albums(db: Session = Depends(get_db)):
+async def get_albums():
     """
     Retorna el listado de álbumes dinámicos (Lo-Fi, Binaural, Ambient) para la HomeScreen.
     """
@@ -56,7 +54,7 @@ def get_albums(db: Session = Depends(get_db)):
     }
 
 @router.get("/songs/{song_id}", summary="Obtener detalles y stream de una canción")
-def get_song_detail(song_id: int, db: Session = Depends(get_db)):
+async def get_song_detail(song_id: int):
     """
     Retorna la información del tema, artista y la URL/stream para reproducir en MusicPlayerScreen.
     """

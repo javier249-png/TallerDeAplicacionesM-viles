@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import get_db
 from models.user_orm import UserORM
@@ -9,9 +9,8 @@ router = APIRouter()
 
 
 @router.get("/", summary="Obtener actividades o tareas diarias del estudiante")
-def get_user_activities(
+async def get_user_activities(
     current_user: UserORM = Depends(get_current_active_user),
-    db: Session = Depends(get_db),
 ):
     return {
         "status": "success",
@@ -34,16 +33,16 @@ def get_user_activities(
     }
 
 @router.post("/{activity_id}/complete", summary="Marcar actividad como completada y sumar XP")
-def complete_activity(
+async def complete_activity(
     activity_id: int,
     current_user: UserORM = Depends(get_current_active_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     reward_xp = 50
 
     current_user.xp += reward_xp
     current_user.level = (current_user.xp // 200) + 1
-    db.commit()
+    await db.commit()
 
     return {
         "status": "success",

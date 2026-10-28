@@ -5,7 +5,7 @@ from security.deps import get_current_user
 router = APIRouter()
 
 @router.post("/start", response_model=PomodoroStatusResponse)
-def start_pomodoro(session: PomodoroSession, current_user: str = Depends(get_current_user)):
+async def start_pomodoro(session: PomodoroSession, current_user: str = Depends(get_current_user)):
     return {
         "session_status": "running",
         "player_action": "play",
@@ -13,7 +13,7 @@ def start_pomodoro(session: PomodoroSession, current_user: str = Depends(get_cur
     }
 
 @router.post("/pause", response_model=PomodoroStatusResponse)
-def pause_pomodoro(current_user: str = Depends(get_current_user)):
+async def pause_pomodoro(current_user: str = Depends(get_current_user)):
     return {
         "session_status": "paused",
         "player_action": "pause",

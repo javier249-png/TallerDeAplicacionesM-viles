@@ -1,11 +1,20 @@
-from sqlalchemy import URL, create_engine
+from collections.abc import AsyncIterator
+
+from sqlalchemy import URL, make_url
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+
 from config import settings
 
-def build_database_url() -> str | URL:
+
+def build_database_url() -> URL:
     if settings.DATABASE_URL:
-        return settings.DATABASE_URL
+        database_url = make_url(settings.DATABASE_URL)
+        if database_url.drivername in {"mysql", "mysql+pymysql"}:
+            return database_url.set(drivername="mysql+aiomysql")
+        if database_url.drivername == "sqlite":
+            return database_url.set(drivername="sqlite+aiosqlite")
+        return database_url
 
     required_settings = {
         "DB_HOST": settings.DB_HOST,
@@ -21,7 +30,7 @@ def build_database_url() -> str | URL:
         )
 
     return URL.create(
-        "mysql+pymysql",
+        "mysql+aiomysql",
         username=settings.DB_USER,
         password=settings.DB_PASSWORD,
         host=settings.DB_HOST,
@@ -32,20 +41,21 @@ def build_database_url() -> str | URL:
 
 DATABASE_URL = build_database_url()
 
-engine = create_engine(
+engine = create_async_engine(
     DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=3600,
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
 
 Base = declarative_base()
 
 
-def get_db():
-    db = SessionLocal()
-    try:
+async def get_db() -> AsyncIterator[AsyncSession]:
+    async with SessionLocal() as db:
         yield db
-    finally:
-        db.close()
