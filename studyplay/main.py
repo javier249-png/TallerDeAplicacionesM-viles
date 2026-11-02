@@ -26,7 +26,7 @@ secure_headers = Secure()
 @app.middleware("http")
 async def set_security_headers(request: Request, call_next):
     response = await call_next(request)
-    secure_headers.framework.fastapi(response)
+    secure_headers.set_headers(response)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Content-Security-Policy"] = "default-src 'self'"

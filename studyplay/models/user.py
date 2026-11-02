@@ -7,4 +7,12 @@ class UserRegister(BaseModel):
     password: str = Field(..., min_length=8)
     accept_terms: bool
     data_processing_consent: bool
-    consent_timestamp: Optional[datetime] = None  # Marca de tiempo para cumplimiento de Ley N° 19.628
+    consent_timestamp: Optional[datetime] = None  # Cumplimiento Ley N° 19.628
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
