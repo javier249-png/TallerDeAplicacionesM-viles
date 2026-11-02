@@ -74,3 +74,22 @@ async def get_song_detail(song_id: int):
             "duration_seconds": 240
         }
     }
+
+@router.get("/songs/{song_id}", summary="Obtener detalles y stream o iframe de una canción")
+def get_song_detail(song_id: int, db: Session = Depends(get_db)):
+    """
+    Retorna la información del tema, artista, audio y el embed HTML de YouTube para la MusicPlayerScreen.
+    """
+    # Ejemplo con soporte integrado para el iframe de YouTube:
+    return {
+        "status": "success",
+        "data": {
+            "id": song_id,
+            "title": f"Pista de Estudio con Video #{song_id}",
+            "artist": "StudyPlay Sounds",
+            "album_id": 1,
+            "audio_url": f"https://streaming.studyplay.cl/audio/track_{song_id}.mp3",
+            "embed_html": '<iframe width="560" height="315" src="https://www.youtube.com/embed/DSDSJO7ix0U?si=RP0he1MwbjgWBCj7" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>',
+            "duration_seconds": 315
+        }
+    }
