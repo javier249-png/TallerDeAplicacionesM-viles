@@ -1,8 +1,29 @@
+captures/
+
+# Gradle y carpetas de build
 .gradle/
 build/
-captures/
+app/build/
 .externalNativeBuild
 .cxx/
+
+# Configuración local e IDE
 local.properties
 .idea/
 *.iml
+
+# Node / JS (si usas React Native o Expo)
+node_modules/
+.expo/
+
+# Binarios y compilados
+*.apk
+*.aar
+*.dex
+*.class
+bin/
+
+# Sistema y logs
+.DS_Store
+Thumbs.db
+*.log

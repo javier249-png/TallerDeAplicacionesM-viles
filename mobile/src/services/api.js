@@ -1,14 +1,12 @@
-﻿const API_URL = process.env.EXPO_PUBLIC_API_URL || process.env.API_URL;
+import axios from 'axios';
 
-export const fetchData = async (endpoint) => {
-  try {
-    const response = await fetch(`${API_URL}/${endpoint}`);
-    if (!response.ok) {
-      throw new Error(`Error HTTP! estado: ${response.status}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error("Error al conectar con el servidor:", error);
-    throw error;
-  }
-};
+// Reemplaza 10.0.2.2 o tu IP local seg�n donde corra tu backend
+const API = axios.create({
+  baseURL: 'http://localhost:8000',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+export default API;
