@@ -1,12 +1,12 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import get_db
 from models.audio import TrackResponse, NoiseMixerRequest
-from models.song import SongORM
+from models.song import Song
 from security.deps import get_current_user
 
 router = APIRouter()
@@ -14,28 +14,50 @@ router = APIRouter()
 
 @router.get("/feed", response_model=List[TrackResponse])
 async def get_spotify_feed(
+    db: AsyncSession = Depends(get_db),
     category: Optional[str] = Query(None, description="lo-fi, clasica, ambient, asmr, 8d"),
     wave_type: Optional[str] = Query(None, description="Alfa, Beta, Theta")
 ):
-    tracks = [
-        {
-            "id": "trk_01",
-            "title": "Deep Focus Alpha Waves 10Hz",
-            "category": "ambient",
-            "brainwave_frequency": "Alfa",
-            "stream_url": "https://cdn.tuapp.cl/audio/alpha.mp3",
-            "cover_art_url": "https://cdn.tuapp.cl/covers/alpha.jpg",
-            "duration_seconds": 3600
-        }
-    ]
+    result = await db.execute(
+        text(
+            """
+            SELECT
+                s.id,
+                s.title,
+                s.audio_url AS stream_url,
+                COALESCE(MAX(a.cover_image_url), '') AS cover_art_url,
+                COALESCE(
+                    GROUP_CONCAT(DISTINCT c.name ORDER BY c.name SEPARATOR ', '),
+                    ''
+                ) AS category
+            FROM songs AS s
+            LEFT JOIN album_songs AS als ON als.song_id = s.id
+            LEFT JOIN albums AS a ON a.id = als.album_id
+            LEFT JOIN song_categories AS sc ON sc.song_id = s.id
+            LEFT JOIN categories AS c ON c.id = sc.category_id
+            WHERE (
+                :category IS NULL OR EXISTS (
+                    SELECT 1
+                    FROM song_categories AS sc_filter
+                    JOIN categories AS c_filter
+                        ON c_filter.id = sc_filter.category_id
+                    WHERE sc_filter.song_id = s.id
+                      AND LOWER(c_filter.name) = LOWER(:category)
+                )
+            )
+            AND (:wave_type IS NULL OR :wave_type = '')
+            GROUP BY s.id, s.title, s.audio_url
+            ORDER BY s.id
+            """
+        ),
+        {"category": category, "wave_type": wave_type},
+    )
     return [
-        track
-        for track in tracks
-        if (category is None or track["category"].casefold() == category.casefold())
-        and (
-            wave_type is None
-            or track["brainwave_frequency"].casefold() == wave_type.casefold()
-        )
+        {
+            **track,
+            "brainwave_frequency": "",
+        }
+        for track in result.mappings().all()
     ]
 
 
@@ -44,7 +66,13 @@ async def update_noise_mixer(
     config: NoiseMixerRequest,
     current_user: str = Depends(get_current_user),
 ):
-    return {"status": "configured", "mix": config.model_dump(), "user_id": current_user}
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail=(
+            "La base de datos actual no tiene una tabla para guardar la configuración "
+            "del mezclador."
+        ),
+    )
 
 
 @router.get("/albums", summary="Listar álbumes de estudio")
@@ -80,7 +108,7 @@ async def get_song_detail(song_id: int, db: AsyncSession = Depends(get_db)):
     if song_id < 1:
         raise HTTPException(status_code=404, detail="Pista de audio no encontrada")
 
-    result = await db.execute(select(SongORM).where(SongORM.id == song_id))
+    result = await db.execute(select(Song).where(Song.id == song_id))
     song = result.scalar_one_or_none()
     if song is None:
         raise HTTPException(status_code=404, detail="Pista de audio no encontrada")
@@ -91,9 +119,7 @@ async def get_song_detail(song_id: int, db: AsyncSession = Depends(get_db)):
             "id": song.id,
             "title": song.title,
             "artist": song.artist,
-            "album_id": song.album_id,
             "audio_url": song.audio_url,
-            "embed_html": song.embed_html,
             "duration_seconds": song.duration_seconds,
         }
     }

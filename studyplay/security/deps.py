@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from db.database import get_db
-from models.user_orm import UserORM
+from models.user_orm import User
 
 security = HTTPBearer()
 
@@ -33,7 +33,7 @@ async def get_current_user(
 async def get_current_active_user(
     user_id: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> UserORM:
+) -> User:
     try:
         numeric_user_id = int(user_id)
     except ValueError:
@@ -43,7 +43,7 @@ async def get_current_active_user(
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
 
-    result = await db.execute(select(UserORM).where(UserORM.id == numeric_user_id))
+    result = await db.execute(select(User).where(User.id == numeric_user_id))
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import get_db
 from models.user import UserProfileUpdate, UserRegister
-from models.user_orm import UserORM
+from models.user_orm import User
 from security.deps import get_current_active_user
 from security.jwt import hash_password
 
@@ -21,7 +21,7 @@ async def register_user(user: UserRegister, db: AsyncSession = Depends(get_db)):
             detail="Debe aceptar expresamente el consentimiento de tratamiento de datos según la ley chilena.",
         )
 
-    result = await db.execute(select(UserORM).where(UserORM.email == user.email))
+    result = await db.execute(select(User).where(User.email == user.email))
     existing_user = result.scalar_one_or_none()
     if existing_user is not None:
         raise HTTPException(
@@ -30,7 +30,8 @@ async def register_user(user: UserRegister, db: AsyncSession = Depends(get_db)):
         )
 
     consent_timestamp = datetime.now(timezone.utc)
-    new_user = UserORM(
+    new_user = User(
+        name=user.full_name,
         email=user.email,
         password_hash=await hash_password(user.password),
         accept_terms=user.accept_terms,
@@ -55,7 +56,7 @@ async def register_user(user: UserRegister, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/profile", summary="Obtener perfil del estudiante autenticado")
-async def get_user_profile(current_user: UserORM = Depends(get_current_active_user)):
+async def get_user_profile(current_user: User = Depends(get_current_active_user)):
     return {
         "status": "success",
         "data": {
@@ -72,7 +73,7 @@ async def get_user_profile(current_user: UserORM = Depends(get_current_active_us
 @router.put("/profile", summary="Actualizar perfil y preferencias")
 async def update_user_profile(
     profile_data: UserProfileUpdate,
-    current_user: UserORM = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     updates = profile_data.model_dump(exclude_unset=True)
