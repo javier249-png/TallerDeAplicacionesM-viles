@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import get_db
 from models.activity import ActivityCompletionORM
-from models.user_orm import UserORM
+from models.user_orm import User
 from security.deps import get_current_active_user
 
 router = APIRouter()
@@ -31,7 +31,7 @@ ACTIVITIES = {
 
 @router.get("/", summary="Obtener actividades o tareas diarias del estudiante")
 async def get_user_activities(
-    current_user: UserORM = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     today = datetime.now(CHILE_TIMEZONE).date()
@@ -55,7 +55,7 @@ async def get_user_activities(
 @router.post("/{activity_id}/complete", summary="Marcar actividad como completada y sumar XP")
 async def complete_activity(
     activity_id: int,
-    current_user: UserORM = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     activity = ACTIVITIES.get(activity_id)

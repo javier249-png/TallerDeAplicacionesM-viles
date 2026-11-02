@@ -1,5 +1,4 @@
-from models.user_orm import UserORM
+from models.user_orm import User
+from models.song import Song
 
-User = UserORM
-
-__all__ = ["User", "UserORM"]
+__all__ = ["User", "Song"]

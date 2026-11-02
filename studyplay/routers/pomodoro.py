@@ -1,112 +1,124 @@
-import time
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Body, Depends, HTTPException, status
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import get_db
-from models.pomodoro import PomodoroSession, PomodoroStatusResponse
-from models.pomodoro_orm import PomodoroTimerORM
-from models.user_orm import UserORM
+from models.pomodoro import PomodoroSession
+from models.pomodoro_orm import PomodoroSessionORM
+from models.user_orm import User
 from security.deps import get_current_active_user
 
 router = APIRouter()
 
 
-@router.post("/start", response_model=PomodoroStatusResponse)
+@router.post("/start", status_code=status.HTTP_201_CREATED)
 async def start_pomodoro(
-    session: PomodoroSession,
-    current_user: UserORM = Depends(get_current_active_user),
+    session: PomodoroSession = Body(default=PomodoroSession()),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(PomodoroTimerORM).where(PomodoroTimerORM.user_id == current_user.id)
+    duration_seconds = session.work_duration_minutes * 60
+    await db.execute(
+        select(User.id).where(User.id == current_user.id).with_for_update()
     )
-    timer = result.scalar_one_or_none()
-    remaining_seconds = session.work_duration_minutes * 60
-
-    if timer is None:
-        timer = PomodoroTimerORM(
-            user_id=current_user.id,
-            session_status="running",
-            remaining_seconds=remaining_seconds,
-            started_at_epoch=int(time.time()),
+    active_result = await db.execute(
+        select(PomodoroSessionORM.id).where(
+            PomodoroSessionORM.user_id == current_user.id,
+            PomodoroSessionORM.xp_earned == -1,
         )
-        db.add(timer)
-    else:
-        timer.session_status = "running"
-        timer.remaining_seconds = remaining_seconds
-        timer.started_at_epoch = int(time.time())
+    )
+    if active_result.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe una sesión Pomodoro activa. Paúsala antes de iniciar otra.",
+        )
 
+    pomodoro_session = PomodoroSessionORM(
+        user_id=current_user.id,
+        duration_seconds=duration_seconds,
+        xp_earned=-1,
+    )
+    db.add(pomodoro_session)
     await db.commit()
+    await db.refresh(pomodoro_session)
     return {
-        "session_status": "running",
-        "player_action": "play",
-        "remaining_seconds": remaining_seconds,
+        "message": "Inicio de sesión Pomodoro registrado.",
+        "session_id": pomodoro_session.id,
+        "duration_seconds": duration_seconds,
+        "xp_earned": pomodoro_session.xp_earned,
     }
 
 
-@router.post("/pause", response_model=PomodoroStatusResponse)
+@router.post("/pause")
 async def pause_pomodoro(
-    current_user: UserORM = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(PomodoroTimerORM).where(PomodoroTimerORM.user_id == current_user.id)
+    user_result = await db.execute(
+        select(User)
+        .where(User.id == current_user.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
-    timer = result.scalar_one_or_none()
-    if timer is None:
+    user = user_result.scalar_one()
+
+    session_result = await db.execute(
+        select(PomodoroSessionORM)
+        .where(
+            PomodoroSessionORM.user_id == user.id,
+            PomodoroSessionORM.xp_earned == -1,
+        )
+        .order_by(PomodoroSessionORM.id.desc())
+        .limit(1)
+        .with_for_update()
+    )
+    pomodoro_session = session_result.scalar_one_or_none()
+    if pomodoro_session is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No hay una sesión Pomodoro activa",
         )
 
-    if timer.session_status == "running":
-        started_at = timer.started_at_epoch
-        if started_at is not None:
-            timer.remaining_seconds = max(
-                0, timer.remaining_seconds - (int(time.time()) - started_at)
+    elapsed_result = await db.execute(
+        select(
+            func.timestampdiff(
+                text("SECOND"),
+                PomodoroSessionORM.created_at,
+                func.current_timestamp(),
             )
-        timer.started_at_epoch = None
-        timer.session_status = "paused" if timer.remaining_seconds else "completed"
-        await db.commit()
-
-    return {
-        "session_status": timer.session_status,
-        "player_action": "pause",
-        "remaining_seconds": timer.remaining_seconds,
-    }
-
-
-@router.post("/resume", response_model=PomodoroStatusResponse)
-async def resume_pomodoro(
-    current_user: UserORM = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(PomodoroTimerORM).where(PomodoroTimerORM.user_id == current_user.id)
+        ).where(PomodoroSessionORM.id == pomodoro_session.id)
     )
-    timer = result.scalar_one_or_none()
-    if timer is None or timer.session_status != "paused":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="No hay una sesión Pomodoro pausada para reanudar",
-        )
+    elapsed_seconds = elapsed_result.scalar_one()
+    elapsed_seconds = min(
+        pomodoro_session.duration_seconds,
+        max(0, elapsed_seconds),
+    )
+    xp_earned = (elapsed_seconds // 60) * 10
 
-    if timer.remaining_seconds == 0:
-        timer.session_status = "completed"
-        await db.commit()
-        return {
-            "session_status": "completed",
-            "player_action": "pause",
-            "remaining_seconds": 0,
-        }
-
-    timer.session_status = "running"
-    timer.started_at_epoch = int(time.time())
+    pomodoro_session.duration_seconds = elapsed_seconds
+    pomodoro_session.xp_earned = xp_earned
+    user.xp += xp_earned
+    user.level = (user.xp // 200) + 1
     await db.commit()
+
     return {
-        "session_status": "running",
-        "player_action": "play",
-        "remaining_seconds": timer.remaining_seconds,
+        "message": "Sesión Pomodoro finalizada.",
+        "session_id": pomodoro_session.id,
+        "duration_seconds": elapsed_seconds,
+        "xp_earned": xp_earned,
+        "total_xp": user.xp,
+        "current_level": user.level,
     }
+
+
+@router.post("/resume")
+async def resume_pomodoro(
+    current_user: User = Depends(get_current_active_user),
+):
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail=(
+            "La tabla pomodoro_sessions no guarda el estado ni el tiempo restante. "
+            "Se necesita almacenamiento adicional para reanudar sesiones."
+        ),
+    )

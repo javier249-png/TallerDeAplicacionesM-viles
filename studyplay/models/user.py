@@ -1,10 +1,16 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import AliasChoices, BaseModel, EmailStr, Field
 
 
 class UserRegister(BaseModel):
+    full_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        validation_alias=AliasChoices("full_name", "name"),
+    )
     email: EmailStr
     password: str = Field(..., min_length=8)
     accept_terms: bool
