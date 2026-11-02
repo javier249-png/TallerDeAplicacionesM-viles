@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 class PomodoroSession(BaseModel):
@@ -6,6 +8,6 @@ class PomodoroSession(BaseModel):
     auto_stop_audio: bool = True
 
 class PomodoroStatusResponse(BaseModel):
-    session_status: str
-    player_action: str
+    session_status: Literal["running", "paused", "completed"]
+    player_action: Literal["play", "pause"]
     remaining_seconds: int

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import get_db
 from models.user import ForgotPasswordRequest, TokenResponse, UserLogin
@@ -10,11 +11,17 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(credentials: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(UserORM).filter(UserORM.email == credentials.email).first()
+async def login(
+    credentials: UserLogin,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(UserORM).where(UserORM.email == credentials.email)
+    )
+    user = result.scalar_one_or_none()
 
-    if user and verify_password(credentials.password, user.password_hash):
-        access_token = create_access_token(data={"sub": str(user.id)})
+    if user and await verify_password(credentials.password, user.password_hash):
+        access_token = await create_access_token(data={"sub": str(user.id)})
         return {"access_token": access_token, "token_type": "bearer"}
 
     raise HTTPException(
@@ -24,7 +31,7 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.post("/forgot-password", summary="Solicitar recuperación de contraseña")
-def forgot_password(payload: ForgotPasswordRequest):
+async def forgot_password(payload: ForgotPasswordRequest):
     return {
         "status": "accepted",
         "message": (

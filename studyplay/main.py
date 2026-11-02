@@ -1,10 +1,3 @@
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-from secure import Secure
-
 from contextlib import asynccontextmanager
 import logging
 
@@ -29,8 +22,12 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    yield
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    try:
+        yield
+    finally:
+        await engine.dispose()
 
 
 app = FastAPI(
@@ -77,16 +74,14 @@ app.add_middleware(
 
 
 @app.get("/healthcheck", tags=["System"])
-def healthcheck():
+async def healthcheck():
     db_status = "disconnected"
-    db = SessionLocal()
-    try:
-        db.execute(text("SELECT 1"))
-        db_status = "connected"
-    except OperationalError as exc:
-        logger.error(f"[HEALTHCHECK ERROR]: No se pudo conectar a la base de datos -> {repr(exc)}")
-    finally:
-        db.close()
+    async with SessionLocal() as db:
+        try:
+            await db.execute(text("SELECT 1"))
+            db_status = "connected"
+        except OperationalError as exc:
+            logger.error(f"[HEALTHCHECK ERROR]: No se pudo conectar a la base de datos -> {repr(exc)}")
 
     status_code = 200 if db_status == "connected" else 503
 

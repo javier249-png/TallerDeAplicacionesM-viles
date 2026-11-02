@@ -1,18 +1,23 @@
-from fastapi import APIRouter,Depends, Query, Depends, HTTPException
 from typing import List, Optional
-from models.audio import TrackResponse, NoiseMixerRequest
-from security.deps import get_current_user
-from sqlalchemy.orm import Session
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from db.database import get_db
+from models.audio import TrackResponse, NoiseMixerRequest
+from models.song import SongORM
+from security.deps import get_current_user
 
 router = APIRouter()
 
+
 @router.get("/feed", response_model=List[TrackResponse])
-def get_spotify_feed(
+async def get_spotify_feed(
     category: Optional[str] = Query(None, description="lo-fi, clasica, ambient, asmr, 8d"),
     wave_type: Optional[str] = Query(None, description="Alfa, Beta, Theta")
 ):
-    return [
+    tracks = [
         {
             "id": "trk_01",
             "title": "Deep Focus Alpha Waves 10Hz",
@@ -23,13 +28,27 @@ def get_spotify_feed(
             "duration_seconds": 3600
         }
     ]
+    return [
+        track
+        for track in tracks
+        if (category is None or track["category"].casefold() == category.casefold())
+        and (
+            wave_type is None
+            or track["brainwave_frequency"].casefold() == wave_type.casefold()
+        )
+    ]
+
 
 @router.post("/noise-generator/mix")
-def update_noise_mixer(config: NoiseMixerRequest, current_user: str = Depends(get_current_user)):
+async def update_noise_mixer(
+    config: NoiseMixerRequest,
+    current_user: str = Depends(get_current_user),
+):
     return {"status": "configured", "mix": config.model_dump(), "user_id": current_user}
 
+
 @router.get("/albums", summary="Listar álbumes de estudio")
-def get_albums(db: Session = Depends(get_db)):
+async def get_albums():
     """
     Retorna el listado de álbumes dinámicos (Lo-Fi, Binaural, Ambient) para la HomeScreen.
     """
@@ -55,24 +74,26 @@ def get_albums(db: Session = Depends(get_db)):
         ]
     }
 
+
 @router.get("/songs/{song_id}", summary="Obtener detalles y stream de una canción")
-def get_song_detail(song_id: int, db: Session = Depends(get_db)):
-    """
-    Retorna la información del tema, artista y la URL/stream para reproducir en MusicPlayerScreen.
-    """
-    # Consulta en base de datos la canción por su ID
-    # Simulación de respuesta para el front:
-    if song_id > 10:
+async def get_song_detail(song_id: int, db: AsyncSession = Depends(get_db)):
+    if song_id < 1:
         raise HTTPException(status_code=404, detail="Pista de audio no encontrada")
-        
+
+    result = await db.execute(select(SongORM).where(SongORM.id == song_id))
+    song = result.scalar_one_or_none()
+    if song is None:
+        raise HTTPException(status_code=404, detail="Pista de audio no encontrada")
+
     return {
         "status": "success",
         "data": {
-            "id": song_id,
-            "title": f"Pista de Concentración #{song_id}",
-            "artist": "StudyPlay Sounds",
-            "album_id": 1,
-            "audio_url": f"https://streaming.studyplay.cl/audio/track_{song_id}.mp3",
-            "duration_seconds": 240
+            "id": song.id,
+            "title": song.title,
+            "artist": song.artist,
+            "album_id": song.album_id,
+            "audio_url": song.audio_url,
+            "embed_html": song.embed_html,
+            "duration_seconds": song.duration_seconds,
         }
     }
