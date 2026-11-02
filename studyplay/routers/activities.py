@@ -1,3 +1,6 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -9,6 +12,8 @@ from models.user_orm import UserORM
 from security.deps import get_current_active_user
 
 router = APIRouter()
+
+CHILE_TIMEZONE = ZoneInfo("America/Santiago")
 
 ACTIVITIES = {
     1: {
@@ -29,9 +34,11 @@ async def get_user_activities(
     current_user: UserORM = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
+    today = datetime.now(CHILE_TIMEZONE).date()
     result = await db.execute(
         select(ActivityCompletionORM.activity_id).where(
-            ActivityCompletionORM.user_id == current_user.id
+            ActivityCompletionORM.user_id == current_user.id,
+            ActivityCompletionORM.completion_date == today,
         )
     )
     completed_activity_ids = set(result.scalars().all())
@@ -59,10 +66,13 @@ async def complete_activity(
         )
 
     reward_xp = activity["xp_reward"]
+    user_id = current_user.id
+    today = datetime.now(CHILE_TIMEZONE).date()
     db.add(
         ActivityCompletionORM(
-            user_id=current_user.id,
+            user_id=user_id,
             activity_id=activity_id,
+            completion_date=today,
         )
     )
     current_user.xp += reward_xp
@@ -73,8 +83,9 @@ async def complete_activity(
         await db.rollback()
         result = await db.execute(
             select(ActivityCompletionORM).where(
-                ActivityCompletionORM.user_id == current_user.id,
+                ActivityCompletionORM.user_id == user_id,
                 ActivityCompletionORM.activity_id == activity_id,
+                ActivityCompletionORM.completion_date == today,
             )
         )
         if result.scalar_one_or_none() is not None:

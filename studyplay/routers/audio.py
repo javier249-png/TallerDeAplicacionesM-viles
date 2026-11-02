@@ -17,7 +17,7 @@ async def get_spotify_feed(
     category: Optional[str] = Query(None, description="lo-fi, clasica, ambient, asmr, 8d"),
     wave_type: Optional[str] = Query(None, description="Alfa, Beta, Theta")
 ):
-    return [
+    tracks = [
         {
             "id": "trk_01",
             "title": "Deep Focus Alpha Waves 10Hz",
@@ -27,6 +27,15 @@ async def get_spotify_feed(
             "cover_art_url": "https://cdn.tuapp.cl/covers/alpha.jpg",
             "duration_seconds": 3600
         }
+    ]
+    return [
+        track
+        for track in tracks
+        if (category is None or track["category"].casefold() == category.casefold())
+        and (
+            wave_type is None
+            or track["brainwave_frequency"].casefold() == wave_type.casefold()
+        )
     ]
 
 
