@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -8,7 +10,7 @@ class TrackResponse(BaseModel):
     brainwave_frequency: str
     stream_url: str
     cover_art_url: str
-    duration_seconds: int
+    duration_seconds: Optional[int] = 0
 
 
 class NoiseMixerRequest(BaseModel):

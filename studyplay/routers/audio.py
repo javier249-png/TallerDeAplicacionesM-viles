@@ -25,6 +25,7 @@ async def get_spotify_feed(
                 s.id,
                 s.title,
                 s.audio_url AS stream_url,
+                COALESCE(s.duration_seconds, 0) AS duration_seconds,
                 COALESCE(MAX(a.cover_image_url), '') AS cover_art_url,
                 COALESCE(
                     GROUP_CONCAT(DISTINCT c.name ORDER BY c.name SEPARATOR ', '),
@@ -46,7 +47,7 @@ async def get_spotify_feed(
                 )
             )
             AND (:wave_type IS NULL OR :wave_type = '')
-            GROUP BY s.id, s.title, s.audio_url
+            GROUP BY s.id, s.title, s.audio_url, s.duration_seconds
             ORDER BY s.id
             """
         ),
@@ -56,6 +57,7 @@ async def get_spotify_feed(
         {
             **track,
             "brainwave_frequency": "",
+            "duration_seconds": getattr(track, "duration_seconds", 0) or 0,
         }
         for track in result.mappings().all()
     ]
