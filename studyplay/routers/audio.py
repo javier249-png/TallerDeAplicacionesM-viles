@@ -57,6 +57,7 @@ async def get_spotify_feed(
         {
             **track,
             "brainwave_frequency": "",
+            "duration_seconds": getattr(track, "duration_seconds", 0) or 0,
         }
         for track in result.mappings().all()
     ]
